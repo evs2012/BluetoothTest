@@ -2,31 +2,39 @@ package com.example.evan.bluetoothtest;
 
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.os.Handler;
 import android.bluetooth.BluetoothSocket;
 import android.content.Intent;
 import android.view.View;
-import android.widget.Button;
-import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Button;
 import android.widget.Toast;
 import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.os.AsyncTask;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.UUID;
 
 public class Transmissions extends AppCompatActivity {
 
     //Widgets
     Button btnGetValues, btnDisconnectBT;
-    EditText txtValueDisplay;
+    TextView myLabel;
     String address = null;
     private ProgressDialog progress;
     BluetoothAdapter myBluetooth = null;
     BluetoothSocket btSocket = null;
     private boolean isBtConnected = false;
     static final UUID myUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
+
+    //threading variables
+    Thread workerThread;
+    volatile boolean stopWorker;
+    int readBufferPosition;
+    byte[] readBuffer;
+    InputStream mmInputStream;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,7 +50,7 @@ public class Transmissions extends AppCompatActivity {
         //call the widgets
         btnGetValues = (Button)findViewById(R.id.btnGetValues);
         btnDisconnectBT = (Button)findViewById(R.id.btnDisconnect);
-        txtValueDisplay = (EditText)findViewById(R.id.txtValue1);
+        myLabel = (TextView)findViewById(R.id.label);
 
         new ConnectBT().execute(); //Call the class to connect
 
@@ -73,18 +81,7 @@ public class Transmissions extends AppCompatActivity {
         {
             try
             {
-                //msg("Sending");
-                btSocket.getOutputStream().write("TO".getBytes());
-                while(btSocket.getInputStream().available()<1)
-                {
-                    //wait until the input stream has bytes
-                }
-                //msg("done waiting");
-                byte[] buffer = {};
-                int BytesRead = btSocket.getInputStream().read(buffer);
-                msg(Integer.toString(BytesRead) + " bytes read.");
-                String str = new String(buffer, "UTF-8"); //encoding type, probably wrong...
-                txtValueDisplay.setText(str, TextView.BufferType.EDITABLE);
+                btSocket.getOutputStream().write("R".getBytes());
             }
             catch (IOException e)
             {
@@ -103,6 +100,8 @@ public class Transmissions extends AppCompatActivity {
         {
             try
             {
+                stopWorker = true;
+                mmInputStream.close();
                 btSocket.close(); //close connection
             }
             catch (IOException e)
@@ -138,6 +137,7 @@ public class Transmissions extends AppCompatActivity {
                     btSocket = dispositivo.createInsecureRfcommSocketToServiceRecord(myUUID);//create a RFCOMM (SPP) connection
                     BluetoothAdapter.getDefaultAdapter().cancelDiscovery();
                     btSocket.connect();//start connection
+                    mmInputStream = btSocket.getInputStream();
                 }
             }
             catch (IOException e)
@@ -160,9 +160,69 @@ public class Transmissions extends AppCompatActivity {
             {
                 msg("Connected.");
                 isBtConnected = true;
+                //Launch listening thread
+                beginListenForData();
             }
             progress.dismiss();
         }
+    }
+
+
+    void beginListenForData()
+    {
+        final Handler handler = new Handler();
+        final byte delimiter = 10; //This is the ASCII code for a newline character
+
+        stopWorker = false;
+        readBufferPosition = 0;
+        readBuffer = new byte[1024];
+        workerThread = new Thread(new Runnable()
+        {
+            public void run()
+            {
+                while(!Thread.currentThread().isInterrupted() && !stopWorker)
+                {
+                    try
+                    {
+                        int bytesAvailable = mmInputStream.available();
+                        if(bytesAvailable > 0)
+                        {
+                            byte[] packetBytes = new byte[bytesAvailable];
+                            mmInputStream.read(packetBytes);
+                            for(int i=0;i<bytesAvailable;i++)
+                            {
+                                byte b = packetBytes[i];
+                                if(b == delimiter)
+                                {
+                                    byte[] encodedBytes = new byte[readBufferPosition];
+                                    System.arraycopy(readBuffer, 0, encodedBytes, 0, encodedBytes.length);
+                                    final String data = new String(encodedBytes, "US-ASCII");
+                                    readBufferPosition = 0;
+
+                                    handler.post(new Runnable()
+                                    {
+                                        public void run()
+                                        {
+                                            myLabel.setText(data);
+                                        }
+                                    });
+                                }
+                                else
+                                {
+                                    readBuffer[readBufferPosition++] = b;
+                                }
+                            }
+                        }
+                    }
+                    catch (IOException ex)
+                    {
+                        stopWorker = true;
+                    }
+                }
+            }
+        });
+
+        workerThread.start();
     }
 }
 

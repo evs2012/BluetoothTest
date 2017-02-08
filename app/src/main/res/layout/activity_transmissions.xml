@@ -22,18 +22,6 @@
         android:layout_marginTop="79dp"
         android:id="@+id/btnGetValues" />
 
-    <EditText
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:inputType="textPersonName"
-        android:text="Value1"
-        android:ems="10"
-        android:layout_centerVertical="true"
-        android:layout_centerHorizontal="true"
-        android:id="@+id/txtValue1"
-        android:singleLine="true"
-        android:editable="false" />
-
     <Button
         android:text="Disconnect"
         android:layout_width="wrap_content"
@@ -43,4 +31,17 @@
         android:layout_alignStart="@+id/btnGetValues"
         android:layout_marginBottom="72dp"
         android:id="@+id/btnDisconnect" />
+
+    <TextView
+        android:text="*nothing yet"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/btnGetValues"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
+        android:layout_marginLeft="77dp"
+        android:layout_marginStart="77dp"
+        android:layout_marginTop="86dp"
+        android:id="@+id/label" />
+
 </RelativeLayout>
